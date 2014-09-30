@@ -1,4 +1,8 @@
-/* declaration of semaphore manager */
+/* 
+ * creates and maintains a list of semaphores
+ * and provides functions that can create or 
+ * destroy one or a pair of semaphores
+ */
 
 #ifndef SEMAPHORE_MANAGER_HPP
 #define SEMAPHORE_MANAGER_HPP
@@ -7,11 +11,12 @@
 #include <sys/sem.h>
 #include <list>
 #include <map>
+#include "Lock.hpp"
 #include "Semaphore.hpp"
 
-#define MAXIMUM_SEMAPHORE_COUNT 40
 #define SEM_DETAILS_LOCATION "/proc/sys/kernel/sem"
 
+/* holds a pair of semaphore */
 typedef struct
 {
     int id;
@@ -40,17 +45,20 @@ class SemaphoreManager
         int initializeSemaphoreSize();
         int initializeSemaphoreList();
 
-        /* semaphore lists */
-        Semaphore mCurrentSemArray;
-        SemaphoreArray mFreeSemList;
-
         /* helper functions */
         int getSemaphoreArray();
         void freeSemaphoreArray(int);
 
+        /* semaphore lists */
+        Semaphore mCurrentSemArray; //holds the current free position in the list
+        SemaphoreArray mFreeSemList; //holds all the semaphores that are free
+
         /* semaphore counts and limits */
         int mMaxSemInArray;
         int mMaxSemArray;
+
+        /* lock for sync */
+        Lock *mpLock;
 
         static SemaphoreManager *mpInstance;
 

@@ -1,58 +1,109 @@
+/* implementation of memory manager */
+
 #include <syslog.h>
 #include <sys/shm.h>
 #include <sys/ipc.h>
 #include <stdlib.h>
 #include "MemoryManager.hpp"
 
-#ifdef USE_SHARED_MEMORY
-#define createMemory(size,mem) createSharedMemory(size,mem)
-#define freeMemory(mem,id) freeSharedMemory(mem,id)
-#else
-#define createMemory(size,mem) createHeapMemory(size,mem)
-#define freeMemory(mem,id) freeHeapMemory(mem,id)
-#endif
-
+/* global functions to allocate and free memory */
 void* memAlloc(size_t size)
 {
-    return MemoryManager::create()->memAlloc(size);
+    return MemoryManager::get()->memAlloc(size);
 }
 
 void memFree(void *mem)
 {
-    MemoryManager::create()->memFree(mem);
+    MemoryManager::get()->memFree(mem);
 }
 
 MemoryManager* MemoryManager::instance = NULL;
 
-MemoryManager * MemoryManager::create()
+/* 
+ * function returns the already created instance.
+ * must be called only after calling init 
+ * atleast once before
+ */
+MemoryManager * MemoryManager::get()
 {
-	if(instance == NULL)
-		instance = new MemoryManager();
-	return instance;
+    return instance;
+}
+
+/* function that creates the actual singleton instance */
+MemoryManager* MemoryManager::init(bool isSharedMemory,
+        uint64_t largeMemSize,
+        uint64_t largeMemBlockSize,
+        uint64_t smallMemSize,
+        uint64_t smallMemBlockSize)
+{
+    if(!instance)
+    {
+        instance = new MemoryManager(isSharedMemory,
+                largeMemSize,
+                largeMemBlockSize,
+                smallMemSize,
+                smallMemBlockSize);
+    }
+    return instance;
 }
 
 void MemoryManager::destroy()
 {
-	if(instance)
-		delete instance;
-	instance = NULL;
+    if(instance)
+    {
+        delete instance;
+    }
+    instance = NULL;
 }
 
-MemoryManager::MemoryManager():mpSmallMemory(NULL),mpLargeMemory(NULL),
-    mSmallMemId(0),mLargeMemId(0)
+/* wrapper function that creates the correct type of memory */
+int MemoryManager::createMemory(size_t size,void *&mem)
 {
-    /* create large memory */
-	mLargeMemId = createMemory(
-            (TOTAL_SIZE + (TOTAL_SIZE/BLOCK_SIZE)) * 
+    if(mIsSharedMemory)
+        return createSharedMemory(size,mem);
+    else
+        return createHeapMemory(size,mem);
+}
+
+/* wrapper function that destroys the correct type of memory */
+void MemoryManager::freeMemory(void *&mem,int id)
+{
+    if(mIsSharedMemory)
+        return freeSharedMemory(mem,id);
+    else
+        freeHeapMemory(mem,id);
+}
+
+/*
+ * To make sure there is no memory wastage, memory sizes are in 
+ * terms of memory blocks.
+ *
+ * TODO: make this work on memory sizes and not block sizes 
+ */
+MemoryManager::MemoryManager(bool isSharedMemory,
+        uint64_t largeMemSize, //in units of large mem blocks
+        uint64_t largeMemBlockSize,
+        uint64_t smallMemSize, //in units of small mem blocks
+        uint64_t smallMemBlockSize) :
+    mIsSharedMemory(isSharedMemory),
+    mLargeMemSize(largeMemSize),
+    mLargeMemBlockSize(largeMemBlockSize),
+    mSmallMemSize(smallMemSize),
+    mSmallMemBlockSize(smallMemBlockSize)
+
+{
+    /* create large memory with additional space for mem mgr upkeep */
+    mLargeMemId = createMemory(
+            (mLargeMemSize + (mLargeMemSize/mLargeMemBlockSize)) * 
             sizeof(MemoryHeader),mpLargeMemory);
 
-    /* create small memory */
-	mSmallMemId = createMemory(
-            (S_TOTAL_SIZE + (S_TOTAL_SIZE/S_BLOCK_SIZE)) * 
+    /* create small memory with additional space for mem mgr upkeep */
+    mSmallMemId = createMemory(
+            (mSmallMemSize + (mSmallMemSize/mSmallMemBlockSize)) * 
             sizeof(MemoryHeader),mpSmallMemory);
 
     /* initialize memory for usage */
-	initializeMemory();
+    initializeMemory();
 }
 
 MemoryManager::~MemoryManager()
@@ -69,12 +120,12 @@ void MemoryManager::initializeMemory()
     /* intitialize large memory */
     MemoryHeader *memHdr = (MemoryHeader*)mpLargeMemory;
     memHdr->free = true;
-    memHdr->count = TOTAL_SIZE/BLOCK_SIZE;
+    memHdr->count = mLargeMemSize/mLargeMemBlockSize;
 
     /* initialize small memory */
     memHdr = (MemoryHeader*)mpSmallMemory;
     memHdr->free = true;
-    memHdr->count = S_TOTAL_SIZE/S_BLOCK_SIZE;
+    memHdr->count = mSmallMemSize/mSmallMemBlockSize;
 }
 
 int MemoryManager::createHeapMemory(size_t size,void *&mem)
@@ -110,7 +161,11 @@ int MemoryManager::createSharedMemory(size_t size,void *&mem)
     return semId;
 }
 
-//allocate the given memory size
+/*
+ * allocated memory of the given size
+ * checks for free memory blocks that fits the given size.
+ * adjuscent blocks are combined to arrive at the req. number
+ */
 void* MemoryManager::memAlloc(size_t size)
 {
     uint32_t t_size = 0,b_size = 0;
@@ -126,7 +181,7 @@ void* MemoryManager::memAlloc(size_t size)
         return NULL;
     }
 
-    if(size > (S_BLOCK_SIZE * sizeof(MemoryHeader)))
+    if(size > (mSmallMemBlockSize * sizeof(MemoryHeader)))
     {
         large_mem = true;
     }
@@ -134,15 +189,15 @@ void* MemoryManager::memAlloc(size_t size)
     if(large_mem)
     {
         hdr = (MemoryHeader*)mpLargeMemory;
-        t_size = TOTAL_SIZE;
-        b_size = BLOCK_SIZE;
+        t_size = mLargeMemSize;
+        b_size = mLargeMemBlockSize;
         sem_num = 0;
     }
     else
     {
         hdr = (MemoryHeader*)mpSmallMemory;
-        t_size = S_TOTAL_SIZE;
-        b_size = S_BLOCK_SIZE;
+        t_size = mSmallMemSize;
+        b_size = mSmallMemBlockSize;
         sem_num = 1;
     }
 
@@ -197,7 +252,7 @@ void* MemoryManager::memAlloc(size_t size)
     return NULL;
 }
 
-//free the given memory
+/* free the given set of memory by setting its status */
 void MemoryManager::memFree(void *location)
 {
     MemoryHeader *temp = (MemoryHeader*) location;

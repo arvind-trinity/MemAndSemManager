@@ -1,5 +1,10 @@
+
 #ifndef SEMAPHORE_HPP
 #define SEMAPHORE_HPP
+
+/*
+ * basic class to hold and operate on a single semaphore
+ */
 
 class Semaphore
 {

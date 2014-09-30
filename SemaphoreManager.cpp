@@ -1,4 +1,6 @@
-/* definition of semaphore manager */
+/* 
+ * implementation of Semaphore Manager
+ */
 
 #include "SemaphoreManager.hpp"
 #include "String.hpp"
@@ -7,9 +9,9 @@
 #include "Lock.hpp"
 #include <sys/errno.h>
 
-Lock *gLock = NULL;
 SemaphoreManager* SemaphoreManager::mpInstance = NULL;
 
+/* static create function for singleton implementation */
 SemaphoreManager* SemaphoreManager::create()
 {
     if(!mpInstance)
@@ -36,7 +38,7 @@ Semaphore SemaphoreManager::getSemaphore()
     bool done = false;
     Semaphore sem;
 
-    gLock->acquireLock();
+    mpLock->acquireLock();
     if(mFreeSemList.size() > 0) //check if we have free sem
     {
         for(SemaphoreArrayItr itr = mFreeSemList.begin();
@@ -62,7 +64,7 @@ Semaphore SemaphoreManager::getSemaphore()
             if((semId = getSemaphoreArray()) == 0)
             {
                 /* error */
-                gLock->releaseLock();
+                mpLock->releaseLock();
                 return sem;
             }
 
@@ -78,17 +80,17 @@ Semaphore SemaphoreManager::getSemaphore()
         sem.mIndex = mCurrentSemArray.mIndex++;
     }
 
-    gLock->releaseLock();
+    mpLock->releaseLock();
     return sem;
 }
 
 void SemaphoreManager::freeSemaphore(Semaphore sem)
 {
-    gLock->acquireLock();
+    mpLock->acquireLock();
     std::list<int> indexes = mFreeSemList[sem.mId];
     indexes.push_back(sem.mIndex);
     mFreeSemList[sem.mId] = indexes;
-    gLock->releaseLock();
+    mpLock->releaseLock();
 }
 
 SemaphorePair SemaphoreManager::getSemaphorePair()
@@ -96,7 +98,7 @@ SemaphorePair SemaphoreManager::getSemaphorePair()
     SemaphorePair semPair = {0};
     bool done = false;
 
-    gLock->acquireLock();
+    mpLock->acquireLock();
     if(mFreeSemList.size() > 0) //check if we have free sem
     {
         for(SemaphoreArrayItr itr = mFreeSemList.begin();
@@ -124,7 +126,7 @@ SemaphorePair SemaphoreManager::getSemaphorePair()
             if((semId = getSemaphoreArray()) == 0)
             {
                 /* error */
-                gLock->releaseLock();
+                mpLock->releaseLock();
                 return semPair;
             }
 
@@ -141,20 +143,21 @@ SemaphorePair SemaphoreManager::getSemaphorePair()
         semPair.secondIndex = mCurrentSemArray.mIndex++;
     }
 
-    gLock->releaseLock();
+    mpLock->releaseLock();
     return semPair;
 }
 
 void SemaphoreManager::freeSemaphorePair(SemaphorePair semPair)
 {
-    gLock->acquireLock();
+    mpLock->acquireLock();
     std::list<int> indexes = mFreeSemList[semPair.id];
     indexes.push_back(semPair.firstIndex);
     indexes.push_back(semPair.secondIndex);
     mFreeSemList[semPair.id] = indexes;
-    gLock->releaseLock();
+    mpLock->releaseLock();
 }
 
+/* system wide settings are loaded from the proc file */
 int SemaphoreManager::initializeSemaphoreSize()
 {
     int ret = 0;
@@ -172,7 +175,7 @@ int SemaphoreManager::initializeSemaphoreSize()
     return ret;
 }
 
-/* create and initialize */
+/* creates a semaphore array and returns the sem id */
 int SemaphoreManager::getSemaphoreArray()
 {
     int semId = 0;
@@ -196,11 +199,18 @@ int SemaphoreManager::getSemaphoreArray()
     return semId;
 }
 
+/* frees a semaphore array */
 void SemaphoreManager::freeSemaphoreArray(int semId)
 {
     semctl(semId,0, IPC_RMID);
 }
 
+/* 
+ * function is called once when the semaphore manager is created
+ * creates an semaphore array and sets the index in mCurrentSemArray
+ * creates a lock for sync only after the semaphore manager is initialized
+ * becasue Lock uses semaphore manager to manage sem resources.
+ */
 int SemaphoreManager::initializeSemaphoreList()
 {
     int ret = 0,semId=0;
@@ -214,14 +224,18 @@ int SemaphoreManager::initializeSemaphoreList()
     mCurrentSemArray.mId = semId;
     mCurrentSemArray.mIndex = 0;
 
+    /* initialize mFreeList */
+    std::list<int> list;
+    mFreeSemList[semId] = list;
+
     /* 
-     * initialize the global lock 
+     * initialize the lock 
      * give the first semaphore for lock
      */
     Semaphore sem;
     sem.mId = mCurrentSemArray.mId;
     sem.mIndex = mCurrentSemArray.mIndex++;
-    gLock = new Lock(sem);
+    mpLock = new Lock(sem);
 
     return ret;
 }
@@ -231,7 +245,7 @@ SemaphoreManager::SemaphoreManager():mMaxSemInArray(0),
 {
 
     /* initialize lock */
-    //gLock = new Lock(Semaphore(
+    //mpLock = new Lock(Semaphore(
     //semget(IPC_PRIVATE,1,0666|IPC_CREAT),0));
 
     /* clear the lists */
@@ -255,6 +269,6 @@ SemaphoreManager::~SemaphoreManager()
 
     /* clear the lists */
     mFreeSemList.clear();
-    delete gLock;
+    delete mpLock;
 }
 

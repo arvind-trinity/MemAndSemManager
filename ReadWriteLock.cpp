@@ -1,4 +1,4 @@
-/* member functions of the class Read write lock */
+/* implementation of read wrtie lock */
 
 #include "ReadWriteLock.hpp"
 #include <sys/errno.h>
@@ -18,6 +18,10 @@ ReadWriteLock::~ReadWriteLock()
         freeSemaphorePair(mReadWriteLock);
 }
 
+/* 
+ * waits for write lock to be released, 
+ * then increments the read count by 1 
+ */
 int ReadWriteLock::acquireReadLock()
 {
     struct sembuf options[2];
@@ -39,6 +43,10 @@ int ReadWriteLock::acquireReadLock()
     return 1;
 }
 
+/* 
+ * wait for write lock to be unlocked, then locks the write lock
+ * waits till the read lock is zero before returning
+ */
 int ReadWriteLock::acquireWriteLock()
 {
     struct sembuf options[3];
@@ -65,6 +73,7 @@ int ReadWriteLock::acquireWriteLock()
     return 1;
 }
 
+/* decrements the read lock */
 int ReadWriteLock::releaseReadLock()
 {
     struct sembuf options[1];
@@ -80,6 +89,7 @@ int ReadWriteLock::releaseReadLock()
     return 1;
 }
 
+/* sets the read lock to zero */
 int ReadWriteLock::releaseWriteLock()
 {
     struct sembuf options[1];

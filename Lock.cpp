@@ -1,6 +1,7 @@
 /* member functions of the class Read write lock */
 
 #include "Lock.hpp"
+#include "SemaphoreManager.hpp"
 
 Lock::Lock():mFlag(false)
 {
@@ -21,6 +22,10 @@ Lock::~Lock()
     }
 }
 
+/* 
+ * locks the lock.
+ * first waits for the lock to get unlocked
+ */
 int Lock::acquireLock()
 {
     struct sembuf options[2];
@@ -42,6 +47,7 @@ int Lock::acquireLock()
     return 1;
 }
 
+/* unlocks the lock and has no wait cycle */
 int Lock::releaseLock()
 {
     struct sembuf options;

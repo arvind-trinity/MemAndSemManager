@@ -1,10 +1,14 @@
 
+/*
+ * Implementation for Semaphore Class
+ */
+
 #include "Semaphore.hpp"
 #include "SemaphoreManager.hpp"
 #include <sys/sem.h>
 #include <sys/errno.h>
 
-#if 0
+#if 0 //uncomment this if needed
 union semun
 {
     int val;
@@ -27,11 +31,13 @@ Semaphore::Semaphore():mId(0),mIndex(0)
 #endif
 }
 
+/* gets the value stored in the semaphore */
 int Semaphore::getCount()
 {
     return semctl(mId,mIndex,GETVAL);
 }
 
+/* sets a value to the semaphore */
 int Semaphore::setCount(int count)
 {
     union semun semopts;
@@ -44,6 +50,7 @@ int Semaphore::setCount(int count)
     return 1;
 }
 
+/* increase the value of the semaphore by 1 */
 int Semaphore::increaseCount()
 {
     struct sembuf options;
@@ -59,6 +66,7 @@ int Semaphore::increaseCount()
     return 1;
 }
 
+/* decrease the value of the semaphore by 1 and cannot be negative */
 int Semaphore::decreaseCount()
 {
     struct sembuf options[1];
