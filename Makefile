@@ -1,5 +1,5 @@
 LIBRARY := libmem_mgr.a
-SOURCES := MemoryManager.cpp SemaphoreManager.cpp Semaphore.cpp Lock.cpp ReadWriteLock.cpp String.cpp
+SOURCES := MemoryManager.cpp SemaphoreManager.cpp Semaphore.cpp Lock.cpp ReadWriteLock.cpp
 OBJECTS := $(SOURCES:.cpp=.o)
 HEADERS := $(SOURCES:.cpp=.hpp)
 CFLAGS  := -Wall -pedantic
