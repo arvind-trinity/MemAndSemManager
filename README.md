@@ -40,5 +40,8 @@ Provides both mutex and read/write lock. Mutex is when a lock is either locked o
         rwLock.acquireWriteLock()
         rwlock.releaseWriteLock()
 
+NOTE:
+    make - creates lib_memmgr.a
+    make install - installs the memory and semaphore manager, which can be then included in project using -lmem_mgr flag
 
 

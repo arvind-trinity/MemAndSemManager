@@ -3,7 +3,6 @@
  */
 
 #include "SemaphoreManager.hpp"
-#include "String.hpp"
 #include <fstream>
 #include <stdlib.h>
 #include "Lock.hpp"
@@ -162,7 +161,7 @@ int SemaphoreManager::initializeSemaphoreSize()
 {
     int ret = 0;
 
-    String details;
+    std::string details;
     std::ifstream file(SEM_DETAILS_LOCATION);
     if(file.is_open()){
         getline(file, details);
